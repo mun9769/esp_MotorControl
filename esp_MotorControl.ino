@@ -4,6 +4,7 @@
 #include <ModbusMaster.h>
 #define MAX485_DE 4
 #define MODBUS_ID 1
+#include "myCan.h"
 
 ModbusMaster node;
 
@@ -14,15 +15,15 @@ const int signPin = 25;   // 빨간색
 // Parameter
 int pulse;
 int64_t signedPos = 0;
-const float e_revolution = 131072; // Encoder : 1바퀴당 Pulse
+const float e_revolution = 131072;  // Encoder : 1바퀴당 Pulse
 const float d_revolution = 360;
-volatile bool stopRequest = false; // Motor Stop Flag
+volatile bool stopRequest = false;  // Motor Stop Flag
 
 // 모드별 각도 설정
 const float O = 0;
-const float Z = 49.3; // Zero Trun : arctan(1100/950)
-const float C = 90; // Crab Driving : 90도
-const float D = 45; // Diagonal Driving : 45도
+const float Z = 49.3;  // Zero Trun : arctan(1100/950)
+const float C = 90;    // Crab Driving : 90도
+const float D = 45;    // Diagonal Driving : 45도
 
 void preTransmission() {
   digitalWrite(MAX485_DE, 1);
@@ -63,6 +64,8 @@ void resetEncoder() {
 
 void Pulseturn(int pulse) {
   stopRequest = false;
+  Serial.print("pulse count: ");
+  Serial.println(pulse);
   for (int i = 0; i < pulse; i++) {
     if (Serial.available()) {
       char ch = Serial.read();
@@ -73,9 +76,9 @@ void Pulseturn(int pulse) {
       }
     }
     digitalWrite(pulsePin, HIGH);
-    delayMicroseconds(25);  // 속도 조절 (짧을수록 빠름)
+    delayMicroseconds(50);  // 속도 조절 (짧을수록 빠름)
     digitalWrite(pulsePin, LOW);
-    delayMicroseconds(25);
+    delayMicroseconds(50);
   }
 }
 
@@ -88,25 +91,16 @@ int DegreetoPulse(float degree) {
 }
 
 void movetoposition(float target_deg) {
-  Encoder();
+  // Encoder();
 
   float target_pulse = DegreetoPulse(target_deg);
-  float delta_pulse = target_pulse - signedPos;    // 움직여야 하는 양 = 원하는 위치(deg) - 현재 위치 (deg)
-  int scaled_pulse = delta_pulse / 32;       // 131072(Encoder)보다 4092(기본셋팅)는 32배 작기 때문에 스케일링
-
-  Serial.print("현재 위치 (deg): ");
-  Serial.println(PulsetoDegree(signedPos));
-  Serial.print("목표 위치 (deg): ");
-  Serial.println(target_deg);
-  Serial.print("이동할 각도 (deg): ");
-  Serial.println(PulsetoDegree(delta_pulse));
-  Serial.print("이동할 펄스 수: ");
-  Serial.println(delta_pulse);
+  float delta_pulse = target_pulse - signedPos;  // 움직여야 하는 양 = 원하는 위치(deg) - 현재 위치 (deg)
+  int scaled_pulse = delta_pulse / 32;           // 131072(Encoder)보다 4096(기본셋팅)는 32배 작기 때문에 스케일링
 
   if (scaled_pulse < 0)          // 방향 설정
     digitalWrite(signPin, LOW);  // LOW = 정방향(엔코더 -) 시계방향
   else
-    digitalWrite(signPin, HIGH); // HIGH = 역방향(엔코더 +) 반시계방향
+    digitalWrite(signPin, HIGH);  // HIGH = 역방향(엔코더 +) 반시계방향
 
   // 계산된 각도와 방향으로 회전
   Pulseturn(abs(scaled_pulse));
@@ -114,21 +108,21 @@ void movetoposition(float target_deg) {
 
 
 void Origin() {
-  movetoposition(O);
+  movetoposition(20*O);
 }
 
 void CrabDriving() {
-  movetoposition(C);
+  movetoposition(20*C);
   // movetoposition(C*20);
 }
 
 void DiagonalDriving() {
-  movetoposition(D);
+  movetoposition(20*D);
   // movetoposition(D*20);
 }
 
 void ZeroTurn() {
-  movetoposition(Z);
+  movetoposition(20*Z);
   // movetoposition(Z);
 }
 
@@ -140,12 +134,12 @@ void Normal() {
   float H = Serial.parseFloat();
   Serial.print("입력 각도 : ");
   Serial.println(H);
-  movetoposition(H*20);
+  movetoposition(H * 20);
 }
 
 void setup() {
   Serial.begin(115200);
-  Serial2.begin(9600, SERIAL_8N1, 23, 22);  // [RS485통신 관련 포트] RX=23(DATA 받기), TX=22(명령 전송) 
+  Serial2.begin(9600, SERIAL_8N1, 23, 22);  // [RS485통신 관련 포트] RX=23(DATA 받기), TX=22(명령 전송)
 
   pinMode(pulsePin, OUTPUT);
   pinMode(signPin, OUTPUT);
@@ -158,29 +152,27 @@ void setup() {
   node.postTransmission(postTransmission);
   node.writeSingleRegister(0x0018, 0x0000);
   resetEncoder();
-  //can_init();
+
+  can_init();
 }
 
 void loop() {
-
-   if (Serial.available()) {
-     String input = Serial.readStringUntil('\n');
-     input.trim();
-     char mode = input.charAt(0);
+  if (onReceiveCANFrame() == true) {
+    char mode = rxMsg.data[3]; // todo: 수정하기
 
     Encoder();
-
     switch (mode) {
-
       case 'e':
         resetEncoder();
         break;
       case 'p':
-        Encoder();
         Serial.print("현재 위치 (pulse): ");
         Serial.println(signedPos);
         Serial.print("현재 위치 (deg): ");
         Serial.println(PulsetoDegree(signedPos));
+
+
+        resetEncoder();
         break;
       case 'r':
         Serial.println("Return Origin 시작");
@@ -208,3 +200,4 @@ void loop() {
     }
   }
 }
+
