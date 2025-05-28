@@ -2,7 +2,7 @@
 #include <ACAN_ESP32.h>
 CANMessage rxMsg;
 
-static const uint32_t RX_STM32_TO_ESP32_ID = 0x18ff0101;    // STM32에서 오는 제어 명령 수신 ID (extended)
+static const uint32_t RX_STM32_TO_ESP32_ID = 0x18ff0101;  // STM32에서 오는 제어 명령 수신 ID (extended)
 
 // ---------- 빅엔디안 변환 함수 ---------- //
 // 4바이트 -> int32_t (빅엔디안)
@@ -30,8 +30,7 @@ static void to2ByteBE(uint8_t* d, int16_t v) {
 }
 
 
-void can_init()
-{
+void can_init() {
   // ----- CAN 초기화 (500kbps, extended ID 사용) ----- //
   ACAN_ESP32_Settings settings(500000UL);
   settings.mRxPin = GPIO_NUM_17;  // CAN RX
@@ -48,21 +47,39 @@ void can_init()
 
 
 
-bool onReceiveCANFrame() { 
+bool onReceiveCANFrame() {
   ACAN_ESP32::can.receive(rxMsg);
 
   // todo: 드라이버로 id 필터링 할것.
   if ((rxMsg.id == RX_STM32_TO_ESP32_ID) && (rxMsg.len == 4)) {
-    char RxMode = rxMsg.data[3];
-
-    Serial.println("    [STM32 -> esp32]");
-    Serial.print("    RxMode (p z c r)     = ");
-    Serial.println(RxMode);
-    Serial.println();
-
     return true;
   }
   return false;
+}
+char RxPrvMode;
+
+void handleCanMessage() {
+  int16_t RxStmDegree = toInt16BE(rxMsg.data);
+  char RxMode = rxMsg.data[3];
+
+  if (RxMode == 'r') {
+    Serial.print("    Control Current = ");
+    Serial.println(RxStmDegree);
+    RxPrvMode = 'r';
+    return;
+  }
+
+  if (RxPrvMode == RxMode)
+    return;
+
+  if (RxPrvMode != RxMode) {
+    Serial.println();
+    Serial.print("    RxMode (p z c r)     = ");
+    Serial.println(RxMode);
+    command(RxMode);
+    RxPrvMode = RxMode;
+    return;
+  }
 }
 
 
@@ -86,9 +103,3 @@ bool sendCANMessage(CANMessage& msg) {
   }
   return ok;
 }
-
-
-
-
-
-
