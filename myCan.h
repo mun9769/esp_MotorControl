@@ -63,23 +63,20 @@ void handleCanMessage() {
   char RxMode = rxMsg.data[3];
 
   if (RxMode == 'r') {
-    Serial.print("    Control Current = ");
-    Serial.println(RxStmDegree);
+    Serial.print("    Control Degree = ");
+    Serial.println(RxStmDegree/10);
     RxPrvMode = 'r';
     return;
   }
 
-  if (RxPrvMode == RxMode)
-    return;
+  // if (RxPrvMode == RxMode)
+  //   return;
 
-  if (RxPrvMode != RxMode) {
-    Serial.println();
-    Serial.print("    RxMode (p z c r)     = ");
-    Serial.println(RxMode);
+  // if (RxPrvMode != RxMode) {
     command(RxMode);
     RxPrvMode = RxMode;
     return;
-  }
+  // }
 }
 
 
