@@ -5,14 +5,10 @@ ModbusMaster node;
 #define MAX485_DE 4
 #define MODBUS_ID 1
 
-// Pin Setting
 const int pulsePin = 26;  // 노란색
 const int signPin = 25;   // 빨간색
 
-// Parameter
-int32_t signedPos = 0;
-const float e_revolution = 131072;  // Encoder : 1바퀴당 Pulse (=2^17)
-const float d_revolution = 360;
+int32_t signedPos = 0;  // 모터의 현재 위치
 
 // 모드별 각도 설정
 const float O = 0;
@@ -20,26 +16,6 @@ const float Z = 49.3;  // Zero Trun : arctan(1100/950)
 const float C = 90;    // Crab Driving : 90도
 const float D = 45;    // Diagonal Driving : 45도
 
-
-float PulsetoDegree(int pulse) {
-  return pulse * d_revolution / e_revolution;
-}
-
-int DegreetoPulse(float degree) {
-  return degree * e_revolution / d_revolution;
-}
-
-
-void resetEncoder() {
-  uint8_t result = node.writeSingleRegister(0x0122, 1);
-  if (result == node.ku8MBSuccess) {
-    Serial.println("절대 위치 리셋 성공!");
-  } else {
-    Serial.print("리셋 실패. 에러 코드: ");
-    Serial.println(result);
-  }
-  delay(500);
-}
 
 void servo_init() {
   Serial2.begin(9600, SERIAL_8N1, 23, 22);  // [RS485] RX=23, TX=22
@@ -57,8 +33,8 @@ void servo_init() {
   node.postTransmission([]() {
     digitalWrite(MAX485_DE, 0);
   });
-  node.writeSingleRegister(0x0018, 0x0000);
 
+  node.writeSingleRegister(0x0018, 0x0000);
   // resetEncoder();
 }
 
@@ -75,7 +51,6 @@ void Encoder() {
     reg[i] = node.getResponseBuffer(i);
   }
 
-  // uint64_t absPos = ((uint64_t)reg[3] << 48) | ((uint64_t)reg[2] << 32) | ((uint64_t)reg[1] << 16) | (uint64_t)reg[0];
   signedPos = (reg[1] << 16) | reg[0];
 
   char buffer[128];
@@ -84,6 +59,17 @@ void Encoder() {
     "signedPos: %6d | 현재 위치 (deg): %6.2f",
     signedPos, PulsetoDegree(signedPos));
   Serial.println(buffer);
+}
+
+void resetEncoder() {
+  uint8_t result = node.writeSingleRegister(0x0122, 1);
+  if (result == node.ku8MBSuccess) {
+    Serial.println("절대 위치 리셋 성공!");
+  } else {
+    Serial.print("리셋 실패. 에러 코드: ");
+    Serial.println(result);
+  }
+  delay(500);
 }
 
 void movetoposition(float target_deg) {
@@ -105,6 +91,7 @@ void movetoposition(float target_deg) {
     delayMicroseconds(250);
   }
 }
+
 
 
 void command(char mode) {
@@ -131,7 +118,6 @@ void command(char mode) {
     case 'p':
       resetEncoder();
       break;
-
     default:
       Serial.println("알 수 없는 명령입니다. 다시 입력해주세요.");
       break;

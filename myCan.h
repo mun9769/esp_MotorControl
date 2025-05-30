@@ -4,32 +4,6 @@ CANMessage rxMsg;
 
 static const uint32_t RX_STM32_TO_ESP32_ID = 0x18ff0101;  // STM32에서 오는 제어 명령 수신 ID (extended)
 
-// ---------- 빅엔디안 변환 함수 ---------- //
-// 4바이트 -> int32_t (빅엔디안)
-static int32_t toInt32BE(const uint8_t* d) {
-  return (int32_t)(((int32_t)d[0] << 24) | ((int32_t)d[1] << 16) | ((int32_t)d[2] << 8) | d[3]);
-}
-
-// 2바이트 -> int16_t (빅엔디안)
-static int16_t toInt16BE(const uint8_t* d) {
-  return (int16_t)(((int16_t)d[0] << 8) | d[1]);
-}
-
-// int32_t -> 4바이트 (빅엔디안)
-static void to4ByteBE(uint8_t* d, int32_t v) {
-  d[0] = (v >> 24) & 0xFF;
-  d[1] = (v >> 16) & 0xFF;
-  d[2] = (v >> 8) & 0xFF;
-  d[3] = v & 0xFF;
-}
-
-// int16_t -> 2바이트 (빅엔디안)
-static void to2ByteBE(uint8_t* d, int16_t v) {
-  d[0] = (v >> 8) & 0xFF;
-  d[1] = v & 0xFF;
-}
-
-
 void can_init() {
   // ----- CAN 초기화 (500kbps, extended ID 사용) ----- //
   ACAN_ESP32_Settings settings(500000UL);
@@ -44,7 +18,6 @@ void can_init() {
   }
   Serial.println("System Ready. Waiting for CAN frames...");
 }
-
 
 
 bool onReceiveCANFrame() {
@@ -64,19 +37,14 @@ void handleCanMessage() {
 
   if (RxMode == 'r') {
     Serial.print("    Control Degree = ");
-    Serial.println(RxStmDegree/10);
+    Serial.println(RxStmDegree / 10);
     RxPrvMode = 'r';
     return;
   }
 
-  // if (RxPrvMode == RxMode)
-  //   return;
+  command(RxMode);
+  RxPrvMode = RxMode;
 
-  // if (RxPrvMode != RxMode) {
-    command(RxMode);
-    RxPrvMode = RxMode;
-    return;
-  // }
 }
 
 

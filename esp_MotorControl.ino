@@ -1,7 +1,7 @@
 // Purpose : Direction control by Serial input
 // Pulse : FA-11 -> 4096, Encoder -> 131072
-#include <WiFi.h>
 #include <esp_chip_info.h>
+#include "myUtil.h"
 #include "myServo.h"
 #include "myCan.h"
 
@@ -10,14 +10,18 @@ void setup() {
 
   can_init();
   servo_init();
-  // uint64_t chipid = ESP.getEfuseMac();
-
-  // Serial.printf("EFUSE MAC: %04X%08X\n",
-  //               (uint16_t)(chipid >> 32), (uint32_t)chipid);
+  uint64_t chipid = ESP.getEfuseMac();
 }
 
 void loop() {
+// can 사용
   if (onReceiveCANFrame() == true) {
     handleCanMessage();
   }
+
+// uart 사용
+  // if (Serial.available()) {       
+  //   char RxMode = (char)Serial.read();  
+  //   command(RxMode);
+  // }
 }
