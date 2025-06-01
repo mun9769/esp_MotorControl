@@ -24,17 +24,17 @@ static void to2ByteBE(uint8_t* d, int16_t v) {
   d[1] = v & 0xFF;
 }
 
-
 const float e_revolution = 131072;  // Encoder : 1바퀴당 Pulse (=2^17)
 const float d_revolution = 360;
 
-float PulsetoDegree(int pulse) {
-  return pulse * d_revolution / e_revolution;
+float CnttoDegree(uint32_t cnt) {
+  return cnt * d_revolution / e_revolution;
 }
 
-int DegreetoPulse(float degree) {
+uint32_t DegreetoCnt(float degree) {
   return degree * e_revolution / d_revolution;
 }
+
 
 
 void printModeDescription(char mode) {

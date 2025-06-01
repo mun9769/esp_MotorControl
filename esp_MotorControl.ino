@@ -10,18 +10,20 @@ void setup() {
 
   can_init();
   servo_init();
-  uint64_t chipid = ESP.getEfuseMac();
 }
 
 void loop() {
-// can 사용
+  // can 사용
   if (onReceiveCANFrame() == true) {
-    handleCanMessage();
+    int16_t deg = toInt16BE(rxMsg.data);
+    char RxMode = rxMsg.data[3];
+
+    command(RxMode, deg);
   }
 
-// uart 사용
-  // if (Serial.available()) {       
-  //   char RxMode = (char)Serial.read();  
+  // uart 사용
+  // if (Serial.available()) {
+  //   char RxMode = (char)Serial.read();
   //   command(RxMode);
   // }
 }

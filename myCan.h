@@ -22,29 +22,11 @@ void can_init() {
 
 bool onReceiveCANFrame() {
   ACAN_ESP32::can.receive(rxMsg);
-
   // todo: 드라이버로 id 필터링 할것.
   if ((rxMsg.id == RX_STM32_TO_ESP32_ID) && (rxMsg.len == 4)) {
     return true;
   }
   return false;
-}
-char RxPrvMode;
-
-void handleCanMessage() {
-  int16_t RxStmDegree = toInt16BE(rxMsg.data);
-  char RxMode = rxMsg.data[3];
-
-  if (RxMode == 'r') {
-    Serial.print("    Control Degree = ");
-    Serial.println(RxStmDegree / 10);
-    RxPrvMode = 'r';
-    return;
-  }
-
-  command(RxMode);
-  RxPrvMode = RxMode;
-
 }
 
 

@@ -1,4 +1,5 @@
 #include <ModbusMaster.h>
+#include <algorithm>
 
 ModbusMaster node;
 
@@ -8,17 +9,43 @@ ModbusMaster node;
 const int pulsePin = 26;  // 노란색
 const int signPin = 25;   // 빨간색
 
-int32_t signedPos = 0;  // 모터의 현재 위치
+int32_t current_cnt = 0;  // 모터의 현재 펄스(=위치)
 
 // 모드별 각도 설정
-const float O = 0;
-const float Z = 49.3;  // Zero Trun : arctan(1100/950)
-const float C = 90;    // Crab Driving : 90도
-const float D = 45;    // Diagonal Driving : 45도
+float O = 0;
+float Z = 0;  // Zero Trun : arctan(1100/950)
+float C = 0;  // Crab Driving : 90도
+float D = 0;  // Diagonal Driving : 45도
 
+void setWheelInitialAngle(uint64_t chipid) {
+  Serial.printf("EFUSE MAC: %04X%08X\n",
+                (uint16_t)(chipid >> 32), (uint32_t)chipid);
+
+  if (chipid == 0x00) {
+    Z = 49.3;
+    C = 90;
+    D = 45;
+  } else if (chipid == 0x01) {
+    Z = 0;
+    C = 0;
+    D = 0;
+  } else if (chipid == 0x02) {
+    Z = 0;
+    C = 0;
+    D = 0;
+  } else if (chipid == 0x03) {
+    Z = 0;
+    C = 0;
+    D = 0;
+  } else {
+    Serial.println("없는 id입니다");
+  }
+}
 
 void servo_init() {
   Serial2.begin(9600, SERIAL_8N1, 23, 22);  // [RS485] RX=23, TX=22
+  uint64_t chipid = ESP.getEfuseMac();
+  setWheelInitialAngle(chipid);
 
   pinMode(pulsePin, OUTPUT);
   pinMode(signPin, OUTPUT);
@@ -38,7 +65,6 @@ void servo_init() {
   // resetEncoder();
 }
 
-
 void Encoder() {
   uint8_t result = node.readHoldingRegisters(0x1018, 4);  // 0x1018 ~ 0x101B 읽기
   if (result != node.ku8MBSuccess) {
@@ -47,17 +73,16 @@ void Encoder() {
   }
 
   uint32_t reg[4];
-  for (int i = 0; i < 4; i++) {
-    reg[i] = node.getResponseBuffer(i);
-  }
+  reg[1] = node.getResponseBuffer(1);
+  reg[0] = node.getResponseBuffer(0);
 
-  signedPos = (reg[1] << 16) | reg[0];
+  current_cnt = (reg[1] << 16) | reg[0];
 
   char buffer[128];
   snprintf(
     buffer, sizeof(buffer),
-    "signedPos: %6d | 현재 위치 (deg): %6.2f",
-    signedPos, PulsetoDegree(signedPos));
+    "current_cnt: %6d | 현재 위치 (deg): %6.2f",
+    current_cnt, CnttoDegree(current_cnt));
   Serial.println(buffer);
 }
 
@@ -65,6 +90,7 @@ void resetEncoder() {
   uint8_t result = node.writeSingleRegister(0x0122, 1);
   if (result == node.ku8MBSuccess) {
     Serial.println("절대 위치 리셋 성공!");
+    current_cnt = 0;
   } else {
     Serial.print("리셋 실패. 에러 코드: ");
     Serial.println(result);
@@ -72,30 +98,57 @@ void resetEncoder() {
   delay(500);
 }
 
-void movetoposition(float target_deg) {
-  int32_t target_pulse = DegreetoPulse(target_deg);
-  int32_t scaled_pulse = (target_pulse - signedPos) / 32;  // 움직여야 하는 양 = 원하는 위치(deg) - 현재 위치 (deg)
+
+void movetoposition(float target_deg, int microDelay = 1000) {
+  int32_t target_cnt = DegreetoCnt(target_deg);
+  int32_t delta_cnt = target_cnt - current_cnt;
+  if (abs(delta_cnt) > e_revolution / 2) {
+    if (delta_cnt > 0) delta_cnt -= e_revolution;
+    else delta_cnt += e_revolution;
+  }
+  int32_t scaled_pulse = 20 * delta_cnt / 32;
 
   digitalWrite(signPin, scaled_pulse > 0);  // HIGH = 역방향(엔코더 +) 반시계방향
 
   char buffer[128];
   snprintf(buffer, sizeof(buffer),
-           "signedPos: %6d | target_pulse: %6d | scaled_pulse: %6d",
-           signedPos, target_pulse, scaled_pulse);
+           "current_cnt: %6d | target_cnt: %6d | scaled_pulse: %6d | 델타각도: %4d",
+           current_cnt, target_cnt, scaled_pulse, CnttoDegree(delta_cnt));
   Serial.println(buffer);
 
   for (int i = 0; i < abs(scaled_pulse); i++) {
     digitalWrite(pulsePin, HIGH);
-    delayMicroseconds(250);  // 속도 조절 (짧을수록 빠름)
+    delayMicroseconds(microDelay);  // 속도 조절 (짧을수록 빠름)
     digitalWrite(pulsePin, LOW);
-    delayMicroseconds(250);
+    delayMicroseconds(microDelay);
+  }
+
+  //todo: 비동기적으로 current_cnt를 가져오기.
+  current_cnt = target_cnt;
+}
+
+char RxPrvMode = 'o';
+void controlJoystick(int16_t deg) {
+  deg = max<int16_t>(deg, -30);
+  deg = min<int16_t>(deg, 30);
+  deg = (deg + 360) % 360;
+
+  if (RxPrvMode == 'r') {
+    Serial.print("Degree received from joystick = ");
+    Serial.println(deg);
+    movetoposition(deg);
+  } else {
+    Serial.println("원점으로 이동하는 중...");
+    movetoposition(O);
   }
 }
 
-
-
-void command(char mode) {
+void command(char mode, int16_t deg) {
+  //Encoder();
   switch (mode) {
+    case 'r':
+      controlJoystick(deg);
+      break;
     case 'o':
       Serial.println("Return Origin 시작");
       movetoposition(O);
@@ -123,7 +176,9 @@ void command(char mode) {
       break;
   }
   Serial.println();
+  RxPrvMode = mode;
 }
+
 
 
 void Normal() {
