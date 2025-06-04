@@ -5,10 +5,8 @@ ModbusMaster node;
 
 #define MAX485_DE 4
 #define MODBUS_ID 1
-
 const int pulsePin = 26;  // 노란색
 const int signPin = 25;   // 빨간색
-
 int32_t current_cnt = 0;  // 모터의 현재 펄스(=위치)
 
 // 모드별 각도 설정
@@ -17,39 +15,12 @@ float Z = 0;  // Zero Trun : arctan(1100/950)
 float C = 0;  // Crab Driving : 90도
 float D = 0;  // Diagonal Driving : 45도
 
-void setWheelInitialAngle(uint64_t chipid) {
-  Serial.printf("EFUSE MAC: %04X%08X\n",
-                (uint16_t)(chipid >> 32), (uint32_t)chipid);
-
-  if (chipid == 0x00) {
-    Z = 49.3;
-    C = 90;
-    D = 45;
-  } else if (chipid == 0x01) {
-    Z = 0;
-    C = 0;
-    D = 0;
-  } else if (chipid == 0x02) {
-    Z = 0;
-    C = 0;
-    D = 0;
-  } else if (chipid == 0x03) {
-    Z = 0;
-    C = 0;
-    D = 0;
-  } else {
-    Serial.println("없는 id입니다");
-  }
-}
 
 void servo_init() {
   Serial2.begin(9600, SERIAL_8N1, 23, 22);  // [RS485] RX=23, TX=22
-  uint64_t chipid = ESP.getEfuseMac();
-  setWheelInitialAngle(chipid);
 
   pinMode(pulsePin, OUTPUT);
   pinMode(signPin, OUTPUT);
-
   pinMode(MAX485_DE, OUTPUT);
   digitalWrite(MAX485_DE, 0);
 
@@ -62,7 +33,7 @@ void servo_init() {
   });
 
   node.writeSingleRegister(0x0018, 0x0000);
-  // resetEncoder();
+  resetEncoder();
 }
 
 void Encoder() {
@@ -99,7 +70,7 @@ void resetEncoder() {
 }
 
 
-void movetoposition(float target_deg, int microDelay = 1000) {
+void movetoposition(float target_deg, int microDelay = 800) {
   int32_t target_cnt = DegreetoCnt(target_deg);
   int32_t delta_cnt = target_cnt - current_cnt;
   if (abs(delta_cnt) > e_revolution / 2) {
@@ -112,7 +83,7 @@ void movetoposition(float target_deg, int microDelay = 1000) {
 
   char buffer[128];
   snprintf(buffer, sizeof(buffer),
-           "current_cnt: %6d | target_cnt: %6d | scaled_pulse: %6d | 델타각도: %4d",
+           "current_cnt: %6d | target_cnt: %6d | scaled_pulse: %6d | 움직이는 각도: %4.2f",
            current_cnt, target_cnt, scaled_pulse, CnttoDegree(delta_cnt));
   Serial.println(buffer);
 
@@ -127,13 +98,13 @@ void movetoposition(float target_deg, int microDelay = 1000) {
   current_cnt = target_cnt;
 }
 
-char RxPrvMode = 'o';
+char prev_mode;
 void controlJoystick(int16_t deg) {
-  deg = max<int16_t>(deg, -30);
-  deg = min<int16_t>(deg, 30);
+  if (deg < -30) deg = -30;
+  if (deg >= 30) deg = 30;
   deg = (deg + 360) % 360;
 
-  if (RxPrvMode == 'r') {
+  if (prev_mode == 'r') {
     Serial.print("Degree received from joystick = ");
     Serial.println(deg);
     movetoposition(deg);
@@ -176,7 +147,7 @@ void command(char mode, int16_t deg) {
       break;
   }
   Serial.println();
-  RxPrvMode = mode;
+  prev_mode = mode;
 }
 
 

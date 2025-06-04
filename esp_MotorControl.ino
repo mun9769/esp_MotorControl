@@ -3,6 +3,7 @@
 #include <esp_chip_info.h>
 #include "myUtil.h"
 #include "myServo.h"
+#include "myEsp.h"
 #include "myCan.h"
 
 void setup() {
@@ -10,6 +11,7 @@ void setup() {
 
   can_init();
   servo_init();
+  checkEspId();
 }
 
 void loop() {
@@ -24,6 +26,6 @@ void loop() {
   // uart 사용
   // if (Serial.available()) {
   //   char RxMode = (char)Serial.read();
-  //   command(RxMode);
+  //   command(RxMode, 0);
   // }
 }
