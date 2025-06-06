@@ -15,6 +15,18 @@ float Z = 0;  // Zero Trun : arctan(1100/950)
 float C = 0;  // Crab Driving : 90도
 float D = 0;  // Diagonal Driving : 45도
 
+void resetEncoder() {
+  uint8_t result = node.writeSingleRegister(0x0122, 1);
+  if (result == node.ku8MBSuccess) {
+    Serial.println("절대 위치 리셋 성공!");
+    current_cnt = 0;
+  } else {
+    Serial.print("리셋 실패. 에러 코드: ");
+    Serial.println(result);
+  }
+  delay(500);
+}
+
 
 void servo_init() {
   Serial2.begin(9600, SERIAL_8N1, 23, 22);  // [RS485] RX=23, TX=22
@@ -57,18 +69,6 @@ void Encoder() {
   Serial.println(buffer);
 }
 
-void resetEncoder() {
-  uint8_t result = node.writeSingleRegister(0x0122, 1);
-  if (result == node.ku8MBSuccess) {
-    Serial.println("절대 위치 리셋 성공!");
-    current_cnt = 0;
-  } else {
-    Serial.print("리셋 실패. 에러 코드: ");
-    Serial.println(result);
-  }
-  delay(500);
-}
-
 
 void movetoposition(float target_deg, int microDelay = 800) {
   int32_t target_cnt = DegreetoCnt(target_deg);
@@ -98,10 +98,17 @@ void movetoposition(float target_deg, int microDelay = 800) {
   current_cnt = target_cnt;
 }
 
+#include <functional>
+std::function<float(float)> onCalculateDegree;
+
 char prev_mode;
 void controlJoystick(int16_t deg) {
   if (deg < -30) deg = -30;
   if (deg >= 30) deg = 30;
+  // deg = onCalculateDegree(deg); // deg = 0일 때 exception 발생
+  // if (deg < -30) deg = -30;
+  // if (deg >= 30) deg = 30;
+
   deg = (deg + 360) % 360;
 
   if (prev_mode == 'r') {
@@ -150,15 +157,3 @@ void command(char mode, int16_t deg) {
   prev_mode = mode;
 }
 
-
-
-void Normal() {
-  Serial.println("각도를 입력하세요 : ");
-  while (!Serial.available())
-    ;
-
-  float H = Serial.parseFloat();
-  Serial.print("입력 각도 : ");
-  Serial.println(H);
-  movetoposition(H);
-}
