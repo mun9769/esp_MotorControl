@@ -70,7 +70,7 @@ void Encoder() {
 }
 
 
-void movetoposition(float target_deg, int microDelay = 800) {
+void movetoposition(float target_deg, int microDelay = 400) {
   int32_t target_cnt = DegreetoCnt(target_deg);
   int32_t delta_cnt = target_cnt - current_cnt;
   if (abs(delta_cnt) > e_revolution / 2) {
@@ -105,9 +105,6 @@ char prev_mode;
 void controlJoystick(int16_t deg) {
   if (deg < -30) deg = -30;
   if (deg >= 30) deg = 30;
-  // deg = onCalculateDegree(deg); // deg = 0일 때 exception 발생
-  // if (deg < -30) deg = -30;
-  // if (deg >= 30) deg = 30;
 
   deg = (deg + 360) % 360;
 

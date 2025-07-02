@@ -14,18 +14,13 @@ void setup() {
   checkEspId();
 }
 
+CANMessage msg;
 void loop() {
-  // can 사용
+
   if (onReceiveCANFrame() == true) {
     int16_t deg = toInt16BE(rxMsg.data);
     char RxMode = rxMsg.data[3];
 
     command(RxMode, deg);
   }
-
-  // uart 사용
-  // if (Serial.available()) {
-  //   char RxMode = (char)Serial.read();
-  //   command(RxMode, 0);
-  // }
 }
